@@ -3,8 +3,8 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  base: "/calendar-flashcard/",      // keep this – repo name
+  base: "/calendar-flashcard/",   // MUST MATCH YOUR REPO NAME EXACTLY
   build: {
-    outDir: "docs",                  // build into /docs instead of /dist
+    outDir: "docs",
   },
 });
