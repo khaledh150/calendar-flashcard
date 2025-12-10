@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-sky-50 text-slate-900 antialiased;
+  }
+}
+
+@layer components {
+  .card-pop {
+    @apply rounded-[2rem] bg-white/95 backdrop-blur-sm shadow-[0_18px_50px_rgba(148,163,184,0.7)];
+  }
+
+  .number-pop {
+    @apply drop-shadow-[0_10px_25px_rgba(15,23,42,0.55)];
+  }
+
+  .getready-overlay {
+    @apply fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm;
+  }
+
+  .mascot-float {
+    animation: mascotFloat 3s ease-in-out infinite;
+  }
+
+  /* Slot-machine style numbers: bold red with black outline like jackpot 7s */
+  .slot-number {
+    font-weight: 900;
+    color: #ff1a1a;
+    text-shadow:
+      -3px -1px 0 #000,
+      3px -1px 0 #000,
+      -3px 1px 0 #000,
+      3px 1px 0 #000,
+      0 0 10px rgba(0, 0, 0, 0.7);
+  }
+}
+
+@keyframes mascotFloat {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
