@@ -62,7 +62,7 @@ function App() {
     if (view === "calendar") return <CalendarGame ref={calRef} lang={lang} />;
 
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-12 animate-in fade-in zoom-in duration-500">
+      <div className="flex-1 flex flex-col items-center justify-center gap-12 animate-in fade-in zoom-in duration-500 z-10">
         <div className="text-center space-y-2">
           <h1 className="text-5xl sm:text-7xl font-black text-slate-800 tracking-tight drop-shadow-sm">
             {t("title")}
@@ -125,16 +125,16 @@ function App() {
          <div className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] bg-purple-200/30 rounded-full blur-[100px]" />
       </div>
 
-      {/* --- ASSETS: LOGOS --- */}
-      <div className="fixed top-4 left-4 sm:top-6 sm:left-6 z-50">
+      {/* --- ASSETS: LOGOS (Combined Left) --- */}
+      <div className="fixed top-4 left-4 sm:top-6 sm:left-6 z-50 flex items-center gap-4">
+        {/* Glow Background */}
+        <div className="absolute inset-0 bg-white/60 blur-xl rounded-full scale-125 -z-10 pointer-events-none"></div>
+        
         <img 
           src={nadaLogo} 
           alt="Nada Logo" 
           className="w-20 sm:w-28 drop-shadow-md transition-transform hover:scale-105"
         />
-      </div>
-      
-      <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-50">
         <img 
           src={wkLogo} 
           alt="Wonder Kids Logo" 
@@ -151,8 +151,8 @@ function App() {
         />
       </div>
 
-      {/* Navigation & Controls */}
-      <div className="fixed top-4 left-0 right-0 z-40 flex justify-center gap-4 pointer-events-none">
+      {/* Navigation & Controls (Right Side) */}
+      <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex justify-end gap-4 pointer-events-none">
         {view !== "home" && (
           <div className="pointer-events-auto flex gap-3 bg-white/80 backdrop-blur-md p-2 rounded-full shadow-sm border border-slate-200/50">
             <button

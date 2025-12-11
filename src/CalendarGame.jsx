@@ -8,7 +8,7 @@ import React, {
 } from "react";
 
 // Assets
-import rouletteSoundFile from "./assets/roulettewheel.mp3";
+import rouletteSoundFile from "./assets/roulettewheel.mp3"; 
 import winSoundFile from "./assets/slot-machine-win-alert.wav";
 import getReadySoundFile from "./assets/getready321.wav";
 import buzzSoundFile from "./assets/startbuzz.wav";
@@ -27,6 +27,9 @@ const TEXT = {
   next_round: { en: "PLAY AGAIN", th: "เล่นอีกครั้ง" },
   get_ready: { en: "GET READY", th: "เตรียมตัว" },
   jackpot: { en: "COMPLETE!", th: "เรียบร้อย!" },
+  day: { en: "DAY", th: "วัน" },
+  month: { en: "MONTH", th: "เดือน" },
+  year: { en: "YEAR", th: "ปี" },
 };
 
 const WEEKDAY_SHORT = {
@@ -92,7 +95,7 @@ function easeOutCubic(t) {
 function Confetti({ active }) {
   if (!active) return null;
   return (
-    <div className="absolute inset-0 pointer-events-none z-100 overflow-hidden">
+    <div className="absolute inset-0 pointer-events-none z-[100] overflow-hidden">
       {Array.from({ length: 50 }).map((_, i) => {
         const left = Math.random() * 100 + "%";
         const delay = Math.random() * 0.5 + "s";
@@ -100,7 +103,7 @@ function Confetti({ active }) {
         return (
           <div
             key={i}
-            className="absolute -top-2.5 w-3 h-3 rounded-sm animate-confetti"
+            className="absolute top-[-10px] w-3 h-3 rounded-sm animate-confetti"
             style={{
               left,
               backgroundColor: bg,
@@ -138,7 +141,6 @@ function Reel({ items, targetValue, duration, loops, spinId }) {
       const eased = easeOutCubic(t);
       let currentOffset = totalDistance * eased;
 
-      // Bounce at end
       if (t > 0.95) {
         const localT = (t - 0.95) / 0.05;
         const bounce = Math.sin(localT * Math.PI) * 15;
@@ -171,7 +173,7 @@ function Reel({ items, targetValue, duration, loops, spinId }) {
       className="relative w-full overflow-hidden bg-white shadow-[inset_0_0_40px_rgba(0,0,0,0.1)]"
       style={{ height: REEL_VISIBLE_HEIGHT }}
     >
-      <div className="absolute inset-0 bg-linear-to-b from-black/20 via-transparent to-black/20 pointer-events-none z-20" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/20 pointer-events-none z-20" />
       <div
         className="absolute left-0 w-full z-10 will-change-transform"
         style={{
@@ -288,26 +290,32 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
 
   /* Flow */
   const triggerSpinSequence = () => {
-     setPhase("slot");
-     setSpinId((prev) => prev + 1);
-     setIsSpinning(true);
-     setCanShowAnswer(false);
-     setShowConfetti(false);
-
+     // Pull Lever first
      setLeverPulled(true);
-     setTimeout(() => setLeverPulled(false), 400);
+     
+     // Lever Animation is 300ms total.
+     // At 50% (150ms), we start the spin logic.
+     setTimeout(() => {
+         setPhase("slot");
+         setSpinId((prev) => prev + 1);
+         setIsSpinning(true);
+         setCanShowAnswer(false);
+         setShowConfetti(false);
+         playSound("roulette");
+         
+         const maxDuration = 5600; 
+         const id = setTimeout(() => {
+           stopSound("roulette");
+           playSound("beep");
+           setCanShowAnswer(true);
+           setIsSpinning(false);
+         }, maxDuration + 200);
+         timeoutsRef.current.push(id);
 
-     playSound("roulette");
+     }, 150); // 50% of lever pull
 
-     const maxDuration = 5600; 
-
-     const id = setTimeout(() => {
-       stopSound("roulette");
-       playSound("beep");
-       setCanShowAnswer(true);
-       setIsSpinning(false);
-     }, maxDuration + 200);
-     timeoutsRef.current.push(id);
+     // Snap back lever after animation
+     setTimeout(() => setLeverPulled(false), 300);
   }
 
   const startRound = () => {
@@ -321,22 +329,32 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
     playSound("ready"); 
     setReadyText("GET");
 
-    // Sequence with 0.9s (900ms) intervals
-    // Plus a 1 second (1000ms) gap at the end
+    // Sequence: 0.7s each for text.
+    // 0: GET
+    // 700: READY
+    // 1400: 3
+    // 2100: 2
+    // 2800: 1
+    // 3500: Buzz -> Static Pause
+    // 4500: Lever Pull
+
     const steps = [
-      { t: 900, txt: "READY" },
-      { t: 1800, txt: "3" },
-      { t: 2700, txt: "2" },
-      { t: 3600, txt: "1" },
-      { t: 4500, txt: "" }, // Visual pause (1 second gap)
-      { t: 5500, txt: null } // Trigger start
+      { t: 700, txt: "READY" },
+      { t: 1400, txt: "3" },
+      { t: 2100, txt: "2" },
+      { t: 2800, txt: "1" },
+      { t: 3500, txt: null }, // Clear text, play Buzz
     ];
 
     steps.forEach(({ t, txt }) => {
       const id = setTimeout(() => {
         if (txt === null) {
+          setReadyText("");
           playSound("buzz");
-          triggerSpinSequence();
+          // 1 Second Static Pause before Lever
+          setTimeout(() => {
+              triggerSpinSequence();
+          }, 1000);
         } else {
           setReadyText(txt);
         }
@@ -380,13 +398,13 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
           <div className="
             bg-white/60 backdrop-blur-xl p-10 rounded-[3rem] 
             shadow-[0_20px_70px_rgba(0,0,0,0.15)] border border-white/50 
-            max-w-2xl w-full text-center flex flex-col gap-8
+            max-w-xl w-full text-center flex flex-col gap-6
           ">
             <h1 className="text-4xl font-black text-slate-800 tracking-tight">
               GAME SETUP
             </h1>
 
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-2">
                <span className="text-slate-500 font-bold uppercase tracking-widest text-sm">
                  {t(lang, "yearType")}
                </span>
@@ -396,9 +414,9 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
                      key={type}
                      onClick={() => setYearType(type)}
                      className={`
-                       px-8 py-4 rounded-2xl font-bold text-xl transition-all duration-300
+                       px-8 py-3 rounded-2xl font-bold text-xl transition-all duration-300
                        ${yearType === type 
-                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-105 ring-4 ring-blue-100' 
+                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-105' 
                          : 'bg-white text-slate-400 hover:bg-slate-50'}
                      `}
                    >
@@ -411,8 +429,8 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
             <button
               onClick={startRound}
               className="
-                w-full py-6 rounded-2xl text-3xl font-black text-white uppercase tracking-widest
-                bg-linear-to-r from-violet-500 to-fuchsia-500
+                w-full py-5 rounded-2xl text-3xl font-black text-white uppercase tracking-widest
+                bg-gradient-to-r from-violet-500 to-fuchsia-500
                 shadow-[0_15px_40px_rgba(168,85,247,0.4)]
                 hover:shadow-[0_20px_50px_rgba(168,85,247,0.6)]
                 hover:scale-[1.02] active:scale-95
@@ -431,7 +449,7 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
           <div className="text-center">
             <div className="
               text-[8rem] sm:text-[12rem] font-black text-transparent bg-clip-text 
-              bg-linear-to-b from-yellow-300 to-orange-500
+              bg-gradient-to-b from-yellow-300 to-orange-500
               drop-shadow-[0_10px_30px_rgba(234,179,8,0.5)]
               animate-bounce
             ">
@@ -463,13 +481,18 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
                shadow-[0_30px_80px_rgba(0,0,0,0.4),inset_0_2px_10px_rgba(255,255,255,0.1)]
                border-b-8 border-slate-950
              ">
-                <div className={`absolute top-0 left-1/2 -translate-x-1/2 h-1 w-1/3 rounded-b-full shadow-[0_0_20px_#3b82f6] transition-colors duration-500 ${canShowAnswer ? 'bg-green-400 shadow-[0_0_30px_#4ade80]' : 'bg-blue-500'}`} />
+                {/* Labels */}
+                <div className="flex text-white font-bold text-sm tracking-widest mb-2 px-6">
+                    <span className="flex-1 text-center text-blue-300">{t(lang, "day")}</span>
+                    <span className="flex-1 text-center text-blue-300">{t(lang, "month")}</span>
+                    <span className="flex-1 text-center text-blue-300">{t(lang, "year")}</span>
+                </div>
 
                 <div className="bg-slate-800 p-4 rounded-[2.5rem] relative overflow-hidden ring-1 ring-white/5">
                    <div className="
-                      bg-white relative rounded-4xl overflow-hidden 
+                      bg-white relative rounded-[2rem] overflow-hidden 
                       flex gap-1 shadow-[inset_0_0_50px_rgba(0,0,0,0.2)]
-                      h-60
+                      h-[240px]
                    ">
                       <div className="absolute top-1/2 left-0 w-full h-24 -translate-y-1/2 bg-blue-500/5 pointer-events-none border-y border-blue-500/20 z-10" />
                       
@@ -485,12 +508,13 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
                    </div>
                 </div>
 
+                {/* LEVER */}
                 <div className="absolute -right-4 sm:-right-12 top-1/2 -translate-y-1/2 h-64 w-16 pointer-events-none sm:pointer-events-auto flex flex-col items-center justify-center">
                     <div 
-                      className="w-4 h-48 bg-slate-700 rounded-full shadow-xl transition-all duration-300 ease-in origin-bottom relative"
+                      className="w-4 h-48 bg-slate-700 rounded-full shadow-xl transition-all duration-300 ease-in-out origin-bottom relative"
                       style={{ transform: leverPulled ? 'rotateX(150deg) scaleY(0.9)' : 'rotateX(0deg)' }}
                     >
-                       <div className="absolute -top-6 -left-4 w-12 h-12 rounded-full bg-linear-to-br from-blue-400 to-indigo-600 shadow-[0_0_20px_rgba(59,130,246,0.6)] ring-2 ring-white/30" />
+                       <div className="absolute -top-6 -left-4 w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 shadow-[0_0_20px_rgba(59,130,246,0.6)] ring-2 ring-white/30" />
                     </div>
                 </div>
              </div>
@@ -517,15 +541,15 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
 
       {/* --- PHASE: ANSWER REVEAL --- */}
       {phase === "answer" && date && (
-        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-lg p-6 animate-in fade-in duration-500">
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-lg p-6 animate-in fade-in duration-500 pt-32 overflow-y-auto">
            
            <div className="
              relative bg-white w-full max-w-2xl rounded-[3rem] 
              shadow-[0_0_100px_rgba(59,130,246,0.2)] 
              overflow-hidden flex flex-col items-center p-8 sm:p-12 gap-6
-             animate-in zoom-in-95 duration-500
+             animate-in zoom-in-95 duration-500 mb-8
            ">
-              <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-blue-500 via-purple-500 to-pink-500" />
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
 
               <div className="flex flex-col items-center">
                 <span className="text-slate-400 font-bold uppercase tracking-widest text-sm mb-2">Winning Date</span>
@@ -537,7 +561,7 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
                 </div>
               </div>
 
-              {/* Enlarged Calendar Grid with Big Red Winning Date */}
+              {/* Enlarged Calendar Grid */}
               <div className="w-full bg-slate-50 rounded-3xl p-6">
                  <table className="w-full text-center border-collapse">
                     <thead>
@@ -581,7 +605,7 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
            <button 
               onClick={startRound}
               className="
-                mt-8 px-10 py-4 rounded-full bg-white text-slate-900 font-black text-xl 
+                mb-8 px-10 py-4 rounded-full bg-white text-slate-900 font-black text-xl 
                 shadow-[0_10px_30px_rgba(255,255,255,0.2)] 
                 hover:scale-105 hover:bg-blue-50 transition-all flex items-center gap-3
               "
