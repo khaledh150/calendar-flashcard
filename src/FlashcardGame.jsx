@@ -49,14 +49,12 @@ function generateRandomSets(numSets = 30, numbersPerSet = 9) {
 
     for (let j = 0; j < numbersPerSet; j++) {
       let num;
-      // First number: 10-99
       if (j === 0) {
         num = Math.floor(Math.random() * 90) + 10;
         runningTotal += num;
         set.push(num);
         continue;
       }
-      // Subsequent numbers
       const canSubtract = runningTotal > 20;
       if (Math.random() < 0.5 && canSubtract) {
         const maxSub = Math.min(89, runningTotal - 1); 
@@ -64,7 +62,6 @@ function generateRandomSets(numSets = 30, numbersPerSet = 9) {
       } else {
         num = Math.floor(Math.random() * 90) + 10;
       }
-
       runningTotal += num;
       set.push(num);
     }
@@ -84,7 +81,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   // --- GAME STATE ---
   const [phase, setPhase] = useState("settings"); 
   const [sets, setSets] = useState([]); 
-  const gameSetsRef = useRef([]); // Critical for logic stability
+  const gameSetsRef = useRef([]); 
   
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
   const [currentNumberIndex, setCurrentNumberIndex] = useState(0);
@@ -121,6 +118,11 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   };
 
   useEffect(() => {
+    // Force voice load for mobile
+    const loadVoices = () => { window.speechSynthesis.getVoices(); };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    
     return () => {
       clearTimers();
       window.speechSynthesis.cancel();
@@ -131,29 +133,27 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   const speak = (text) => {
     if (!ttsEnabled) return;
     
-    // Hard cancel before every new speech to prevent queue lag
+    // Hard cancel before new speech
     window.speechSynthesis.cancel(); 
 
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US'; 
-    // Increased speed to 2.1 as requested
-    u.rate = 2.1; 
+    u.rate = speed < 0.8 ? 1.8 : 1.3; // Optimized rate
     u.volume = 1.0;
+    
     window.speechSynthesis.speak(u);
   };
 
   const speakNumber = (num, isLast) => {
     let text = "";
-    // Explicitly say Plus/Minus for everything
-    if (num >= 0) {
-        text += "Plus "; 
-    } else {
-        text += "Minus ";
-    }
+    // Say "Plus" or "Minus"
+    if (num >= 0) text += "Plus "; 
+    else text += "Minus ";
+    
     text += Math.abs(num).toString();
-    if (isLast) {
-       text += " Equals";
-    }
+
+    if (isLast) text += " Equals";
+    
     speak(text);
   };
 
@@ -169,12 +169,9 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
 
   // --- GAME LOGIC ---
 
-  // NOTE: This function now accepts 'targetIndex' to force usage of the correct set
-  // regardless of React state lag.
   const startSequenceForSet = (targetIndex) => {
     clearTimers();
     
-    // Update State
     setCurrentSetIndex(targetIndex);
     setCurrentNumberIndex(0);
     setActualAnswer(null);
@@ -182,18 +179,14 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     setFeedbackStatus(null);
     setPhase("getready");
     
-    // Calculate answer using the passed index directly from Ref
     const nps = Math.max(1, Math.min(numbersPerSet, 20));
     const currentSetNumbers = gameSetsRef.current[targetIndex];
     
     if (currentSetNumbers) {
        const ans = currentSetNumbers.slice(0, nps).reduce((a, b) => a + b, 0);
        setActualAnswer(ans);
-    } else {
-       console.error("Set data missing for index:", targetIndex);
     }
 
-    // GET READY ANIMATION
     playSound("ready");
     setReadyText("GET");
 
@@ -212,7 +205,6 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
             playSound("buzz");
             setReadyText("");
         } else if (txt === null) {
-            // Pass the targetIndex explicitly to startFlashing
             startFlashing(targetIndex);
         } else {
             setReadyText(txt);
@@ -226,10 +218,9 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     setPhase("playing");
     const nps = Math.max(1, Math.min(numbersPerSet, 20));
 
-    // Use forcedIndex to guarantee we read the correct set row
     if (!gameSetsRef.current[forcedIndex]) return;
 
-    // Play/Speak first number
+    // First number
     const firstNum = gameSetsRef.current[forcedIndex][0];
     playSound("tick");
     speakNumber(firstNum, false);
@@ -238,7 +229,6 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
       setCurrentNumberIndex((prev) => {
         const next = prev + 1;
         
-        // End of set
         if (next >= nps) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
@@ -250,7 +240,6 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
           return prev; 
         }
 
-        // Use forcedIndex here too!
         const num = gameSetsRef.current[forcedIndex][next];
         const isLast = next === nps - 1;
         
@@ -263,12 +252,17 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   };
 
   const handleStart = () => {
+    // MOBILE FIX: Trigger empty speech to "unlock" audio engine on user interaction
+    if (ttsEnabled) {
+        const warmUp = new SpeechSynthesisUtterance("");
+        window.speechSynthesis.speak(warmUp);
+    }
+
     const nps = Math.max(1, Math.min(numbersPerSet, 20));
-    // Generate fresh sets
     const generated = generateRandomSets(totalRounds + 5, nps);
     
     setSets(generated);
-    gameSetsRef.current = generated; // Sync Ref
+    gameSetsRef.current = generated;
     
     setPracticeHistory([]);
     startSequenceForSet(0);
@@ -332,11 +326,8 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   // --- NAVIGATION ---
 
   const handleNextRound = () => {
-    // Calculate next index
     const nextIdx = currentSetIndex + 1;
-    
     if (nextIdx < totalRounds) {
-        // Pass the new index explicitly!
         startSequenceForSet(nextIdx);
     } else {
         startSummarySequence();
@@ -382,9 +373,6 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     const val = currentSet[currentNumberIndex];
     const isLast = currentNumberIndex === numbersToShow - 1;
     
-    // Viewport based sizing
-    const fontSizeClass = "text-[25vh] sm:text-[30vh] lg:text-[40vh]";
-
     return (
       <div 
         key={`${currentSetIndex}-${currentNumberIndex}`} 
@@ -392,21 +380,35 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
       >
         <div className="flex items-center justify-center w-full">
             {val < 0 && (
-              <span className="text-[12vh] font-black text-red-500 mr-2 sm:mr-4 self-center leading-none">
+              // Responsive Minus Sign
+              <span 
+                className="font-black text-red-500 mr-2 sm:mr-4 self-center leading-none"
+                style={{ fontSize: 'min(15vh, 20vw)' }}
+              >
                  −
               </span>
             )}
             
-            <span className={`
-              ${fontSizeClass} font-black tracking-tighter leading-none
-              ${val < 0 ? 'text-red-500' : 'text-slate-800'}
-              drop-shadow-2xl filter
-            `}>
+            {/* Massive Numbers with Size Constraints to prevent overflow */}
+            <span 
+              className={`
+                font-black tracking-tighter leading-none
+                ${val < 0 ? 'text-red-500' : 'text-slate-800'}
+                drop-shadow-2xl filter
+              `}
+              style={{ fontSize: 'min(25vh, 35vw)' }}
+            >
               {Math.abs(val)}
             </span>
             
+            {/* Red Question Mark on last number */}
             {isLast && (
-               <span className="text-[25vh] text-red-600 ml-4 font-black animate-pulse leading-none drop-shadow-2xl">?</span>
+               <span 
+                 className="text-red-600 ml-4 font-black animate-pulse leading-none drop-shadow-2xl"
+                 style={{ fontSize: 'min(25vh, 35vw)' }}
+               >
+                 ?
+               </span>
             )}
         </div>
       </div>
@@ -417,14 +419,15 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center relative select-none bg-slate-50 overflow-hidden">
       
-      {/* Title / Round Indicator */}
-      <div className="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/80 backdrop-blur-md rounded-full border border-slate-200 shadow-md z-30">
-        <h2 className="text-sm sm:text-lg font-black text-slate-700 tracking-widest uppercase flex items-center gap-2 whitespace-nowrap">
-          {phase === "settings" ? t(lang, "settings") : 
-           phase === "summary" ? t(lang, "summary") :
-           `${t(lang, "rounds")} ${currentSetIndex + 1} / ${totalRounds}`} 
-        </h2>
-      </div>
+      {/* Title / Round Indicator - MOVED DOWN BELOW NAV/LOGOS */}
+      {/* Only show during gameplay phases */}
+      {phase !== "settings" && phase !== "summary" && (
+        <div className="absolute top-20 sm:top-24 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/80 backdrop-blur-md rounded-full border border-slate-200 shadow-md z-30">
+          <h2 className="text-sm sm:text-lg font-black text-slate-700 tracking-widest uppercase flex items-center gap-2 whitespace-nowrap">
+            {`${t(lang, "rounds")} ${currentSetIndex + 1} / ${totalRounds}`} 
+          </h2>
+        </div>
+      )}
 
       {/* --- PHASE: SETTINGS --- */}
       {phase === "settings" && (
@@ -493,7 +496,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
       {/* --- PHASE: GET READY --- */}
       {phase === "getready" && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-md">
-           <div className="text-[6rem] sm:text-[15vh] font-black text-white leading-none drop-shadow-[0_0_50px_rgba(6,182,212,0.8)] animate-bounce text-center">
+           <div className="font-black text-white leading-none drop-shadow-[0_0_50px_rgba(6,182,212,0.8)] animate-bounce text-center" style={{ fontSize: 'min(15vh, 25vw)' }}>
              {readyText}
            </div>
         </div>
@@ -502,11 +505,11 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
       {/* --- PHASE: SUMMARY --- */}
       {phase === "summary" && (
         <div className="flex-1 w-full h-full flex flex-col items-center justify-center animate-in fade-in duration-500 px-2 overflow-hidden">
-            <div className="w-full max-w-3xl bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl p-6 flex flex-col max-h-[90vh]">
+            <div className="w-full max-w-4xl bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl p-6 flex flex-col max-h-[90vh]">
                 <h3 className="text-center text-2xl font-black text-slate-800 mb-4 uppercase border-b pb-2 shrink-0">{t(lang, "summary")}</h3>
                 
-                {/* Scrollable List */}
-                <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+                {/* Scrollable List with Hidden Scrollbar */}
+                <div className="flex-1 overflow-y-auto pr-2 space-y-3 no-scrollbar">
                     {practiceHistory.map((item, idx) => {
                         const setNums = sets[idx];
                         const nps = Math.max(1, Math.min(numbersPerSet, 20));
@@ -617,7 +620,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
       {/* --- PHASE: FEEDBACK (Practice Result) --- */}
       {phase === "feedback" && (
          <div className="flex-1 w-full flex flex-col items-center justify-center animate-in zoom-in duration-300 pb-12">
-             <div className={`text-[15vh] ${feedbackStatus === 'correct' ? 'text-green-500' : 'text-red-500'} drop-shadow-2xl`}>
+             <div className="font-black drop-shadow-2xl" style={{ fontSize: 'min(15vh, 25vw)', color: feedbackStatus === 'correct' ? '#22c55e' : '#ef4444' }}>
                  {feedbackStatus === 'correct' ? '✓' : '✗'}
              </div>
              <h2 className="text-4xl font-black text-slate-800 mt-4 mb-2">
@@ -635,7 +638,15 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
          </div>
       )}
 
+      {/* CSS Utility for hidden scrollbar */}
       <style jsx>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
         @keyframes popIn {
           0% { transform: scale(0.5); opacity: 0; }
           60% { transform: scale(1.1); opacity: 1; }
