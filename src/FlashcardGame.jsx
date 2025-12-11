@@ -35,6 +35,9 @@ constRb = {
   tts: { en: "Voice", th: "เสียงอ่าน" },
 };
 
+// alias so your existing t() calls still work
+const TEXT = constRb;
+
 const t = (lang, key) => TEXT[key]?.[lang] ?? key;
 
 /**
@@ -123,7 +126,9 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     return () => {
       clearTimers();
       if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
+        try {
+          window.speechSynthesis.cancel();
+        } catch (e) {}
       }
     };
   }, []);
@@ -142,7 +147,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
 
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-US";
-    u.rate = rateOverride ?? 2.1; // default rate for questions
+    u.rate = rateOverride ?? 2.1; // fixed speed for dictation
     u.volume = 1.0;
 
     currentUtteranceRef.current = u;
@@ -161,6 +166,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   };
 
   // Dictation ONLY for flashing numbers and their operators
+  // "Equals" is spoken separately when the ? appears, not inside this function
   const speakNumber = (num, isLast) => {
     if (!ttsEnabled) return;
 
@@ -170,8 +176,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
 
     text += Math.abs(num).toString();
 
-    if (isLast) text += " Equals";
-
+    // NO "Equals" here – it is spoken separately when the question mark appears
     speak(text, 2.1);
   };
 
@@ -257,14 +262,19 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
         const next = prev + 1;
 
         if (next >= nps) {
+          // All numbers are already shown, index stays at last,
+          // so the "?" is visible now. Speak "Equals" here,
+          // exactly when the question mark is on screen.
           clearInterval(intervalRef.current);
           intervalRef.current = null;
+
+          speak("Equals", 2.1);
 
           setTimeout(() => {
             setPhase("input");
           }, 600);
 
-          return prev;
+          return prev; // keep last index so last number + ? stay visible
         }
 
         const num = gameSetsRef.current[forcedIndex][next];
@@ -353,7 +363,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     ]);
 
     if (revealMode === "each") {
-      // Practice Mode (no TTS here anymore)
+      // Practice Mode (no TTS here)
       if (isCorrect) {
         setFeedbackStatus("correct");
         playSound("ding");
