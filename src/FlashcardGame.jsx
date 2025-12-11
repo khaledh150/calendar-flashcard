@@ -128,25 +128,34 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     };
   }, []);
 
-  // --- TTS ENGINE (MOBILE OPTIMIZED) ---
+  // --- TTS ENGINE (MOBILE FIXED) ---
   const speak = (text) => {
     if (!ttsEnabled) return;
 
-    // STRICT CANCELLATION: Cut off previous number immediately
+    // 1. Cancel previous audio
     window.speechSynthesis.cancel();
 
+    // 2. Create the utterance
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US'; 
-    u.rate = 2.1;     // Requested Rate
+    u.rate = 1.8; // Reduced slightly from 2.1 for better Android stability
+    u.pitch = 1.0;
     u.volume = 1.0;
 
-    // GC FIX: Bind to ref so it doesn't get garbage collected
+    // 3. GC FIX: Bind to ref so it doesn't get garbage collected
     currentUtteranceRef.current = u;
     u.onend = () => {
         currentUtteranceRef.current = null;
     };
     
-    window.speechSynthesis.speak(u);
+    u.onerror = (e) => {
+        console.error("TTS Error:", e);
+    };
+
+    // 4. THE FIX: Small timeout allows Android to finish 'cancel' before 'speak'
+    setTimeout(() => {
+        window.speechSynthesis.speak(u);
+    }, 10);
   };
 
   const speakNumber = (num) => {
@@ -269,11 +278,14 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     }, Math.max(speed, 0.4) * 1000); 
   };
 
-  const handleStart = () => {
-    // TTS UNLOCK: Silent utterance to wake up engine on iOS/Android
+const handleStart = () => {
+    // TTS UNLOCK: Must speak a REAL word to wake up Android engine
     if (ttsEnabled) {
         window.speechSynthesis.cancel();
-        const unlock = new SpeechSynthesisUtterance(" ");
+        // We speak "Ready" visually and audibly to force the audio channel open
+        const unlock = new SpeechSynthesisUtterance("Ready");
+        unlock.rate = 1.5;
+        unlock.volume = 0.1; // Quietly
         window.speechSynthesis.speak(unlock);
     }
 
@@ -399,7 +411,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     // 1. Removed 'scale' transform.
     // 2. Using 'clamp' for font size (8rem min, 40vw preferred, 20rem max).
     // 3. w-[90vw] ensures numbers use full width of phone screen.
-    const numberSize = { fontSize: 'clamp(20rem, 40vw, 20rem)' };
+    const numberSize = { fontSize: 'clamp(18rem, 40vw, 20rem)' };
     const minusSize = { fontSize: 'clamp(10rem, 15vw, 8rem)' };
 
     return (
