@@ -75,7 +75,7 @@ function App() {
         <div className="flex flex-col sm:flex-row gap-8 w-full max-w-3xl px-6">
           <button
             onClick={() => setView("flashcard")}
-            className="flex-1 group relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-cyan-400 to-blue-600 p-8 text-white shadow-[0_20px_50px_rgba(6,182,212,0.3)] hover:scale-105 hover:shadow-[0_30px_60px_rgba(6,182,212,0.5)] transition-all duration-300"
+            className="flex-1 group relative overflow-hidden rounded-[2.5rem] bg-linear-to-br from-cyan-400 to-blue-600 p-8 text-white shadow-[0_20px_50px_rgba(6,182,212,0.3)] hover:scale-105 hover:shadow-[0_30px_60px_rgba(6,182,212,0.5)] transition-all duration-300"
           >
             <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
             <span className="text-6xl mb-4 block group-hover:scale-110 transition-transform duration-300">🧠</span>
@@ -84,7 +84,7 @@ function App() {
 
           <button
             onClick={() => setView("calendar")}
-            className="flex-1 group relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-orange-400 to-rose-600 p-8 text-white shadow-[0_20px_50px_rgba(244,63,94,0.3)] hover:scale-105 hover:shadow-[0_30px_60px_rgba(244,63,94,0.5)] transition-all duration-300"
+            className="flex-1 group relative overflow-hidden rounded-[2.5rem] bg-linear-to-br from-orange-400 to-rose-600 p-8 text-white shadow-[0_20px_50px_rgba(244,63,94,0.3)] hover:scale-105 hover:shadow-[0_30px_60px_rgba(244,63,94,0.5)] transition-all duration-300"
           >
             <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
             <span className="text-6xl mb-4 block group-hover:scale-110 transition-transform duration-300">📅</span>

@@ -591,7 +591,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
 
             <button
               onClick={handleStart}
-              className="mt-2 w-full py-4 rounded-2xl text-2xl font-black text-white uppercase tracking-widest bg-gradient-to-r from-cyan-400 to-blue-500 shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+              className="mt-2 w-full py-4 rounded-2xl text-2xl font-black text-white uppercase tracking-widest bg-linear-to-r from-cyan-400 to-blue-500 shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
             >
               {t(lang, "start")}
             </button>
@@ -614,7 +614,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
       {/* --- PHASE: SUMMARY --- */}
       {phase === "summary" && (
         <div className="flex-1 w-full h-full flex flex-col items-center justify-center animate-in fade-in duration-500 px-2 overflow-hidden">
-          <div className="w-full max-w-4xl bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl p-6 flex flex-col max-h-[90vh]">
+          <div className="w-full max-w-4xl bg-white/95 backdrop-blur-xl rounded-4xl shadow-2xl p-6 flex flex-col max-h-[90vh]">
             <h3 className="text-center text-2xl font-black text-slate-800 mb-4 uppercase border-b pb-2 shrink-0">
               {t(lang, "summary")}
             </h3>
