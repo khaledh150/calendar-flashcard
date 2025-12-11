@@ -95,7 +95,7 @@ function easeOutCubic(t) {
 function Confetti({ active }) {
   if (!active) return null;
   return (
-    <div className="absolute inset-0 pointer-events-none z-[100] overflow-hidden">
+    <div className="absolute inset-0 pointer-events-none z-100 overflow-hidden">
       {Array.from({ length: 50 }).map((_, i) => {
         const left = Math.random() * 100 + "%";
         const delay = Math.random() * 0.5 + "s";
@@ -103,7 +103,7 @@ function Confetti({ active }) {
         return (
           <div
             key={i}
-            className="absolute top-[-10px] w-3 h-3 rounded-sm animate-confetti"
+            className="absolute -top-2.5 w-3 h-3 rounded-sm animate-confetti"
             style={{
               left,
               backgroundColor: bg,
@@ -173,7 +173,7 @@ function Reel({ items, targetValue, duration, loops, spinId }) {
       className="relative w-full overflow-hidden bg-white shadow-[inset_0_0_40px_rgba(0,0,0,0.1)]"
       style={{ height: REEL_VISIBLE_HEIGHT }}
     >
-      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/20 pointer-events-none z-20" />
+      <div className="absolute inset-0 bg-linear-to-b from-black/20 via-transparent to-black/20 pointer-events-none z-20" />
       <div
         className="absolute left-0 w-full z-10 will-change-transform"
         style={{
@@ -430,7 +430,7 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
               onClick={startRound}
               className="
                 w-full py-5 rounded-2xl text-3xl font-black text-white uppercase tracking-widest
-                bg-gradient-to-r from-violet-500 to-fuchsia-500
+                bg-linear-to-r from-violet-500 to-fuchsia-500
                 shadow-[0_15px_40px_rgba(168,85,247,0.4)]
                 hover:shadow-[0_20px_50px_rgba(168,85,247,0.6)]
                 hover:scale-[1.02] active:scale-95
@@ -449,7 +449,7 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
           <div className="text-center">
             <div className="
               text-[8rem] sm:text-[12rem] font-black text-transparent bg-clip-text 
-              bg-gradient-to-b from-yellow-300 to-orange-500
+              bg-linear-to-b from-yellow-300 to-orange-500
               drop-shadow-[0_10px_30px_rgba(234,179,8,0.5)]
               animate-bounce
             ">
@@ -490,9 +490,9 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
 
                 <div className="bg-slate-800 p-4 rounded-[2.5rem] relative overflow-hidden ring-1 ring-white/5">
                    <div className="
-                      bg-white relative rounded-[2rem] overflow-hidden 
+                      bg-white relative rounded-4xl overflow-hidden 
                       flex gap-1 shadow-[inset_0_0_50px_rgba(0,0,0,0.2)]
-                      h-[240px]
+                      h-60
                    ">
                       <div className="absolute top-1/2 left-0 w-full h-24 -translate-y-1/2 bg-blue-500/5 pointer-events-none border-y border-blue-500/20 z-10" />
                       
@@ -514,7 +514,7 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
                       className="w-4 h-48 bg-slate-700 rounded-full shadow-xl transition-all duration-300 ease-in-out origin-bottom relative"
                       style={{ transform: leverPulled ? 'rotateX(150deg) scaleY(0.9)' : 'rotateX(0deg)' }}
                     >
-                       <div className="absolute -top-6 -left-4 w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 shadow-[0_0_20px_rgba(59,130,246,0.6)] ring-2 ring-white/30" />
+                       <div className="absolute -top-6 -left-4 w-12 h-12 rounded-full bg-linear-to-br from-blue-400 to-indigo-600 shadow-[0_0_20px_rgba(59,130,246,0.6)] ring-2 ring-white/30" />
                     </div>
                 </div>
              </div>
@@ -549,7 +549,7 @@ const CalendarGame = forwardRef(function CalendarGame({ lang }, ref) {
              overflow-hidden flex flex-col items-center p-8 sm:p-12 gap-6
              animate-in zoom-in-95 duration-500 mb-8
            ">
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
+              <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-blue-500 via-purple-500 to-pink-500" />
 
               <div className="flex flex-col items-center">
                 <span className="text-slate-400 font-bold uppercase tracking-widest text-sm mb-2">Winning Date</span>
