@@ -123,17 +123,17 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     };
   }, []);
 
-  // --- SIMPLE TTS (MATCHING YOUR WORKING APP) ---
+  // --- TTS ENGINE (MOBILE COMPATIBLE) ---
   const speak = (text) => {
     if (!ttsEnabled) return;
     
-    // Simplest possible implementation for mobile compatibility
     window.speechSynthesis.cancel(); 
 
     const u = new SpeechSynthesisUtterance(text);
-    // Don't set voice object, just lang. This allows mobile OS to pick default.
+    // Explicitly force US English. Android/iOS will use their default en-US voice.
     u.lang = 'en-US'; 
     u.rate = speed < 0.8 ? 1.5 : 1.2; 
+    u.volume = 1.0;
     
     window.speechSynthesis.speak(u);
   };
@@ -245,12 +245,14 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   };
 
   const handleStart = () => {
-    // --- SIMPLE UNLOCK ---
-    // Just play a blank sound on click. This unlocks iOS.
+    // --- MOBILE AUDIO UNLOCK ---
+    // This silent speech trigger is ESSENTIAL for iOS/Android
+    // to "wake up" the TTS engine on a user click.
     if (ttsEnabled) {
         window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(" ");
-        window.speechSynthesis.speak(u);
+        const unlock = new SpeechSynthesisUtterance("");
+        unlock.volume = 0; // Silent
+        window.speechSynthesis.speak(unlock);
     }
     playSound("tick"); 
 
@@ -377,18 +379,16 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     const val = currentSet[currentNumberIndex];
     const isLast = currentNumberIndex === numbersToShow - 1;
     
-    // MASSIVE FONT SIZE LOGIC
-    // Using 40vh ensures it takes 40% of screen height
-    // min(40vh, 50vw) ensures it fits on narrow screens too
-    const fontSizeStyle = { fontSize: 'min(40vh, 50vw)' };
-    const minusSizeStyle = { fontSize: 'min(20vh, 25vw)' };
+    // MASSIVE FONT SIZE: 60% of viewport height or 85% of width, whichever is smaller
+    const fontSizeStyle = { fontSize: 'min(60vh, 85vw)' };
+    const minusSizeStyle = { fontSize: 'min(30vh, 40vw)' };
 
     return (
       <div 
         key={`${currentSetIndex}-${currentNumberIndex}`} 
         className="flex flex-col items-center justify-center relative w-full h-full"
       >
-        <div className="flex items-center justify-center w-full">
+        <div className="flex items-center justify-center w-full h-full">
             {val < 0 && (
               <span className="font-black text-red-500 mr-2 self-center leading-none" style={minusSizeStyle}>
                  −
@@ -423,9 +423,9 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center relative select-none bg-slate-50 overflow-hidden">
       
-      {/* Title / Round Indicator - MOVED WAY DOWN (top-32) to avoid nav collision */}
+      {/* Title / Round Indicator - MOVED DOWN to top-36 (approx 144px) */}
       {phase !== "settings" && phase !== "summary" && (
-        <div className="absolute top-32 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/80 backdrop-blur-md rounded-full border border-slate-200 shadow-md z-30">
+        <div className="absolute top-36 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/80 backdrop-blur-md rounded-full border border-slate-200 shadow-md z-30">
           <h2 className="text-sm sm:text-lg font-black text-slate-700 tracking-widest uppercase flex items-center gap-2 whitespace-nowrap">
             {`${t(lang, "rounds")} ${currentSetIndex + 1} / ${totalRounds}`} 
           </h2>
@@ -511,6 +511,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
             <div className="w-full max-w-4xl bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl p-6 flex flex-col max-h-[90vh]">
                 <h3 className="text-center text-2xl font-black text-slate-800 mb-4 uppercase border-b pb-2 shrink-0">{t(lang, "summary")}</h3>
                 
+                {/* Scrollable List with Hidden Scrollbar */}
                 <div className="flex-1 overflow-y-auto pr-2 space-y-3 no-scrollbar">
                     {practiceHistory.map((item, idx) => {
                         const setNums = sets[idx];
@@ -574,7 +575,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
       {/* --- PHASE: PLAYING (FLASHING) --- */}
       {phase === "playing" && (
         <div className="flex-1 w-full flex flex-col items-center justify-center pb-12">
-             <div className="relative z-20 w-full flex justify-center">
+             <div className="relative z-20 w-full h-full flex justify-center">
                 {renderDisplayContent()}
              </div>
              
