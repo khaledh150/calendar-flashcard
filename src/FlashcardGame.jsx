@@ -118,12 +118,20 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   };
 
   useEffect(() => {
-    // Force voice load for mobile
-    const loadVoices = () => { window.speechSynthesis.getVoices(); };
+    // --- MOBILE TTS INIT FIX ---
+    // Periodically check for voices to ensure they are loaded (Android fix)
+    const loadVoices = () => { 
+        const voices = window.speechSynthesis.getVoices(); 
+        if (voices.length > 0) {
+            // Voices loaded
+        }
+    };
     loadVoices();
     window.speechSynthesis.onvoiceschanged = loadVoices;
+    const voiceCheckInterval = setInterval(loadVoices, 500);
     
     return () => {
+      clearInterval(voiceCheckInterval);
       clearTimers();
       window.speechSynthesis.cancel();
     };
@@ -138,7 +146,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
 
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US'; 
-    u.rate = speed < 0.8 ? 1.8 : 1.3; // Optimized rate
+    u.rate = speed < 0.8 ? 1.8 : 1.3; 
     u.volume = 1.0;
     
     window.speechSynthesis.speak(u);
@@ -146,7 +154,6 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
 
   const speakNumber = (num, isLast) => {
     let text = "";
-    // Say "Plus" or "Minus"
     if (num >= 0) text += "Plus "; 
     else text += "Minus ";
     
@@ -252,9 +259,13 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   };
 
   const handleStart = () => {
-    // MOBILE FIX: Trigger empty speech to "unlock" audio engine on user interaction
+    // --- MOBILE TTS UNLOCK ---
+    // This MUST happen on click to work on iOS
     if (ttsEnabled) {
-        const warmUp = new SpeechSynthesisUtterance("");
+        window.speechSynthesis.cancel();
+        // iOS requires 'resume' to be called in user interaction
+        if (window.speechSynthesis.pause) window.speechSynthesis.resume();
+        const warmUp = new SpeechSynthesisUtterance(" ");
         window.speechSynthesis.speak(warmUp);
     }
 
@@ -303,30 +314,42 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     const userInt = parseInt(userInput, 10);
     const isCorrect = userInt === actualAnswer;
 
-    if (isCorrect) {
-        setFeedbackStatus("correct");
-        playSound("ding");
-        speak("Correct");
-    } else {
-        setFeedbackStatus("wrong");
-        playSound("error");
-        speak(`Wrong, answer is ${actualAnswer}`);
-    }
-    
-    setPhase("feedback");
-
+    // Save History
     setPracticeHistory(prev => [...prev, {
         setIndex: currentSetIndex,
         userAnswer: userInt,
         correctAnswer: actualAnswer,
         isCorrect: isCorrect
     }]);
+
+    if (revealMode === "each") {
+        // --- PRACTICE MODE: Show Feedback ---
+        if (isCorrect) {
+            setFeedbackStatus("correct");
+            playSound("ding");
+            speak("Correct");
+        } else {
+            setFeedbackStatus("wrong");
+            playSound("error");
+            speak(`Wrong, answer is ${actualAnswer}`);
+        }
+        setPhase("feedback");
+    } else {
+        // --- COMPETITION MODE: Skip Feedback, Next Round ---
+        // Slight delay for UX (visual button press acknowledgement)
+        setTimeout(() => {
+            handleNextRound(true); // Pass flag that we are auto-advancing
+        }, 150);
+    }
   };
 
   // --- NAVIGATION ---
 
-  const handleNextRound = () => {
+  const handleNextRound = (autoAdvance = false) => {
+    // If we are auto-advancing (Competition mode), we use the current set index + 1
+    // If we are coming from "Feedback" screen (Practice), state is consistent
     const nextIdx = currentSetIndex + 1;
+    
     if (nextIdx < totalRounds) {
         startSequenceForSet(nextIdx);
     } else {
@@ -419,10 +442,10 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center relative select-none bg-slate-50 overflow-hidden">
       
-      {/* Title / Round Indicator - MOVED DOWN BELOW NAV/LOGOS */}
+      {/* Title / Round Indicator - MOVED DOWN to top-28 (7rem/112px) */}
       {/* Only show during gameplay phases */}
       {phase !== "settings" && phase !== "summary" && (
-        <div className="absolute top-20 sm:top-24 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/80 backdrop-blur-md rounded-full border border-slate-200 shadow-md z-30">
+        <div className="absolute top-28 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/80 backdrop-blur-md rounded-full border border-slate-200 shadow-md z-30">
           <h2 className="text-sm sm:text-lg font-black text-slate-700 tracking-widest uppercase flex items-center gap-2 whitespace-nowrap">
             {`${t(lang, "rounds")} ${currentSetIndex + 1} / ${totalRounds}`} 
           </h2>
@@ -632,7 +655,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
                  </div>
              )}
              
-             <button onClick={handleNextRound} autoFocus className="mt-12 px-12 py-5 rounded-full bg-slate-800 text-white font-black text-2xl shadow-xl hover:scale-105 active:scale-95 transition-all">
+             <button onClick={() => handleNextRound(false)} autoFocus className="mt-12 px-12 py-5 rounded-full bg-slate-800 text-white font-black text-2xl shadow-xl hover:scale-105 active:scale-95 transition-all">
                  {currentSetIndex + 1 < totalRounds ? t(lang, 'nextSet') : t(lang, 'finish')} →
              </button>
          </div>
