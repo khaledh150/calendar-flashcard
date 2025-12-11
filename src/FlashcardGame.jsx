@@ -75,6 +75,9 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   const [totalRounds, setTotalRounds] = useState(5);
   const [revealMode, setRevealMode] = useState("each"); 
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  
+  // NEW: Voice State for Android Fix
+  const [voices, setVoices] = useState([]);
 
   // --- GAME STATE ---
   const [phase, setPhase] = useState("settings"); 
@@ -128,34 +131,65 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     };
   }, []);
 
-  // --- TTS ENGINE (MOBILE FIXED) ---
+  // --- FORCE ANDROID VOICE LOADING ---
+  useEffect(() => {
+    const loadVoices = () => {
+      const vs = window.speechSynthesis.getVoices();
+      if (vs.length > 0) {
+        setVoices(vs);
+      }
+    };
+
+    // Try to load immediately
+    loadVoices();
+
+    // Android Chrome loads voices asynchronously, so we must listen for this event
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, []);
+
+  // --- TTS ENGINE (MOBILE FIXED & VOICE LOADER) ---
   const speak = (text) => {
     if (!ttsEnabled) return;
 
-    // 1. Cancel previous audio
+    // 1. Cancel any active speech to prevent overlap
     window.speechSynthesis.cancel();
 
     // 2. Create the utterance
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US'; 
-    u.rate = 1.8; // Reduced slightly from 2.1 for better Android stability
+    
+    // 3. CRITICAL FOR ANDROID: Find the specific Voice Object
+    // Android often ignores 'lang' property if 'voice' object is not set explicitly
+    const preferredVoice = voices.find(v => 
+        v.name.includes("Google US English") || 
+        v.lang === "en-US" || 
+        v.lang === "en_US"
+    );
+
+    if (preferredVoice) {
+        u.voice = preferredVoice;
+        u.lang = preferredVoice.lang;
+    } else {
+        // Fallback if voices aren't loaded yet
+        u.lang = 'en-US';
+    }
+
+    // 4. Settings
+    u.rate = 1.5; // Keep it moderate for stability
     u.pitch = 1.0;
     u.volume = 1.0;
 
-    // 3. GC FIX: Bind to ref so it doesn't get garbage collected
+    // 5. Bind ref to prevent Garbage Collection
     currentUtteranceRef.current = u;
-    u.onend = () => {
-        currentUtteranceRef.current = null;
-    };
-    
-    u.onerror = (e) => {
-        console.error("TTS Error:", e);
-    };
+    u.onend = () => { currentUtteranceRef.current = null; };
+    u.onerror = (e) => { console.error("TTS Error:", e); };
 
-    // 4. THE FIX: Small timeout allows Android to finish 'cancel' before 'speak'
-    setTimeout(() => {
-        window.speechSynthesis.speak(u);
-    }, 10);
+    // 6. Speak
+    // Small delay helps Android clear the previous audio buffer
+    setTimeout(() => window.speechSynthesis.speak(u), 10);
   };
 
   const speakNumber = (num) => {
@@ -278,7 +312,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     }, Math.max(speed, 0.4) * 1000); 
   };
 
-const handleStart = () => {
+  const handleStart = () => {
     // TTS UNLOCK: Must speak a REAL word to wake up Android engine
     if (ttsEnabled) {
         window.speechSynthesis.cancel();
