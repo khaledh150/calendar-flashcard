@@ -2,7 +2,6 @@ import React, {
   forwardRef,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -21,7 +20,7 @@ const TEXT = {
   revealMode: { en: "Mode", th: "โหมด" },
   modeEach: { en: "Practice", th: "ฝึกซ้อม" },
   modeEnd: { en: "Competition", th: "แข่งขัน" },
-  start: { en: "START", th: "เริ่มเกม" },
+  start: { en: "START GAME", th: "เริ่มเกม" },
   nextSet: { en: "NEXT", th: "ถัดไป" },
   submit: { en: "SUBMIT", th: "ส่งคำตอบ" },
   finish: { en: "FINISH", th: "จบเกม" },
@@ -103,6 +102,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     buzz: new Audio(buzzSound),
   });
 
+  const selectedVoiceRef = useRef(null);
   const intervalRef = useRef(null);
   const timeoutsRef = useRef([]);
 
@@ -117,17 +117,24 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     timeoutsRef.current = [];
   };
 
+  // --- TTS INITIALIZATION (Mobile Fix) ---
   useEffect(() => {
-    // --- MOBILE TTS INIT FIX ---
-    // Periodically check for voices to ensure they are loaded (Android fix)
-    const loadVoices = () => { 
-        const voices = window.speechSynthesis.getVoices(); 
+    const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
         if (voices.length > 0) {
-            // Voices loaded
+            // Prioritize Google US English or standard en-US
+            const preferred = voices.find(v => v.name.includes("Google US English")) || 
+                              voices.find(v => v.lang === "en-US") || 
+                              voices.find(v => v.lang.startsWith("en"));
+            selectedVoiceRef.current = preferred || voices[0];
         }
     };
+
     loadVoices();
+    // Chrome/Android loads voices asynchronously
     window.speechSynthesis.onvoiceschanged = loadVoices;
+    
+    // Polling fallback for stubborn mobile browsers
     const voiceCheckInterval = setInterval(loadVoices, 500);
     
     return () => {
@@ -137,14 +144,19 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
     };
   }, []);
 
-  // --- TTS ENGINE ---
+  // --- SPEAK FUNCTION ---
   const speak = (text) => {
     if (!ttsEnabled) return;
     
-    // Hard cancel before new speech
+    // iOS Safari requires explicit resume
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
     window.speechSynthesis.cancel(); 
 
     const u = new SpeechSynthesisUtterance(text);
+    // Explicitly set the voice object if we found one
+    if (selectedVoiceRef.current) {
+        u.voice = selectedVoiceRef.current;
+    }
     u.lang = 'en-US'; 
     u.rate = speed < 0.8 ? 1.8 : 1.3; 
     u.volume = 1.0;
@@ -259,15 +271,18 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   };
 
   const handleStart = () => {
-    // --- MOBILE TTS UNLOCK ---
-    // This MUST happen on click to work on iOS
+    // --- CRITICAL MOBILE AUDIO UNLOCK ---
+    // We must play a sound AND speak text inside this user-click event
+    // to unlock the engines for the rest of the game session.
     if (ttsEnabled) {
         window.speechSynthesis.cancel();
-        // iOS requires 'resume' to be called in user interaction
-        if (window.speechSynthesis.pause) window.speechSynthesis.resume();
-        const warmUp = new SpeechSynthesisUtterance(" ");
+        if (window.speechSynthesis.resume) window.speechSynthesis.resume();
+        const warmUp = new SpeechSynthesisUtterance("Game Started");
+        warmUp.volume = 0.1; // almost silent
         window.speechSynthesis.speak(warmUp);
     }
+    // Also warm up audio context for SFX
+    playSound("tick"); 
 
     const nps = Math.max(1, Math.min(numbersPerSet, 20));
     const generated = generateRandomSets(totalRounds + 5, nps);
@@ -336,9 +351,8 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
         setPhase("feedback");
     } else {
         // --- COMPETITION MODE: Skip Feedback, Next Round ---
-        // Slight delay for UX (visual button press acknowledgement)
         setTimeout(() => {
-            handleNextRound(true); // Pass flag that we are auto-advancing
+            handleNextRound(true); 
         }, 150);
     }
   };
@@ -346,8 +360,6 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   // --- NAVIGATION ---
 
   const handleNextRound = (autoAdvance = false) => {
-    // If we are auto-advancing (Competition mode), we use the current set index + 1
-    // If we are coming from "Feedback" screen (Practice), state is consistent
     const nextIdx = currentSetIndex + 1;
     
     if (nextIdx < totalRounds) {
@@ -406,20 +418,20 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
               // Responsive Minus Sign
               <span 
                 className="font-black text-red-500 mr-2 sm:mr-4 self-center leading-none"
-                style={{ fontSize: 'min(15vh, 20vw)' }}
+                style={{ fontSize: 'min(20vh, 25vw)' }}
               >
                  −
               </span>
             )}
             
-            {/* Massive Numbers with Size Constraints to prevent overflow */}
+            {/* MASSIVE Numbers: Using min(55vh, 75vw) to fill screen without overflow */}
             <span 
               className={`
                 font-black tracking-tighter leading-none
                 ${val < 0 ? 'text-red-500' : 'text-slate-800'}
                 drop-shadow-2xl filter
               `}
-              style={{ fontSize: 'min(25vh, 35vw)' }}
+              style={{ fontSize: 'min(55vh, 75vw)' }}
             >
               {Math.abs(val)}
             </span>
@@ -428,7 +440,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
             {isLast && (
                <span 
                  className="text-red-600 ml-4 font-black animate-pulse leading-none drop-shadow-2xl"
-                 style={{ fontSize: 'min(25vh, 35vw)' }}
+                 style={{ fontSize: 'min(55vh, 75vw)' }}
                >
                  ?
                </span>
@@ -442,8 +454,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center relative select-none bg-slate-50 overflow-hidden">
       
-      {/* Title / Round Indicator - MOVED DOWN to top-28 (7rem/112px) */}
-      {/* Only show during gameplay phases */}
+      {/* Title / Round Indicator - MOVED DOWN to top-28 to avoid header */}
       {phase !== "settings" && phase !== "summary" && (
         <div className="absolute top-28 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/80 backdrop-blur-md rounded-full border border-slate-200 shadow-md z-30">
           <h2 className="text-sm sm:text-lg font-black text-slate-700 tracking-widest uppercase flex items-center gap-2 whitespace-nowrap">
