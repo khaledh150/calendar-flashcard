@@ -9,9 +9,7 @@ import React, {
 // Import Audio Assets
 import tickSound from "./assets/tick.wav";
 import dingSound from "./assets/ding.wav";
-import getReadySound from "./assets/getready321.wav";
-import buzzSound from "./assets/startbuzz.wav";
-// UPDATED: Changed to the requested wronganswer.wav
+import getReadySound from "./assets/getready321.wav"; // Contains full sequence to bridge audio
 import wrongSoundFile from "./assets/wronganswer.wav"; 
 
 const TEXT = {
@@ -98,18 +96,19 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   const audioRefs = useRef({
     tick: new Audio(tickSound),
     ding: new Audio(dingSound),
-    wrong: new Audio(wrongSoundFile), // Updated to use the wronganswer.wav
+    wrong: new Audio(wrongSoundFile),
     ready: new Audio(getReadySound),
-    buzz: new Audio(buzzSound),
   });
 
   const intervalRef = useRef(null);
   const timeoutsRef = useRef([]);
+  const isMounted = useRef(true);
   
   // GC FIX: Hold reference to current utterance
   const currentUtteranceRef = useRef(null);
 
   useEffect(() => {
+    // Volume adjustments
     if (audioRefs.current.tick) audioRefs.current.tick.volume = 0.7; 
     if (audioRefs.current.ding) audioRefs.current.ding.volume = 1.0;
   }, []);
@@ -121,7 +120,9 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   };
 
   useEffect(() => {
+    isMounted.current = true;
     return () => {
+      isMounted.current = false;
       clearTimers();
       window.speechSynthesis.cancel();
     };
@@ -131,12 +132,12 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   const speak = (text) => {
     if (!ttsEnabled) return;
 
-    // STRICT CANCELLATION: Ensure previous speech is killed immediately
+    // STRICT CANCELLATION: Cut off previous number immediately
     window.speechSynthesis.cancel();
 
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US'; // Default best effort for mobile
-    u.rate = 2.1;     // User Requested Rate
+    u.lang = 'en-US'; 
+    u.rate = 2.1;     // Requested Rate
     u.volume = 1.0;
 
     // GC FIX: Bind to ref so it doesn't get garbage collected
@@ -149,12 +150,10 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   };
 
   const speakNumber = (num) => {
-    // Logic: Always say "Plus" or "Minus", even for the first number
     let text = "";
     if (num >= 0) text += "Plus "; 
     else text += "Minus ";
     text += Math.abs(num).toString();
-    
     speak(text);
   };
 
@@ -188,32 +187,45 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
        setActualAnswer(ans);
     }
 
-    playSound("ready");
-    setReadyText("GET");
+    // 1. Play the long audio file ONCE. This keeps the engine awake.
+    playSound("ready"); 
+    
+    // 2. Visual Sequence Logic
+    const seq = ["GET", "READY", "3", "2", "1", "GO!"];
+    let i = 0;
 
-    // REMOVED 'speakTxt' - Countdown is now silent visually (except for SFX)
-    const steps = [
-      { t: 900, txt: "READY" },
-      { t: 1800, txt: "3" },
-      { t: 2700, txt: "2" },
-      { t: 3600, txt: "1" },
-      { t: 4500, txt: "" }, 
-      { t: 5500, txt: null } // Start
-    ];
+    const runSeq = () => {
+        if (!isMounted.current) return;
+        
+        const text = seq[i];
+        setReadyText(text);
 
-    steps.forEach(({ t, txt }) => {
-      const id = setTimeout(() => {
-        if (t === 4500) {
-            playSound("buzz");
-            setReadyText("");
-        } else if (txt === null) {
-            startFlashing(targetIndex);
+        const isGo = i === seq.length - 1; // Check if last step
+        const duration = isGo ? 900 : 700; // 0.9s for Go, 0.7s for others
+
+        if (!isGo) {
+            const id = setTimeout(() => {
+                i++;
+                runSeq();
+            }, duration);
+            timeoutsRef.current.push(id);
         } else {
-            setReadyText(txt);
+            // "GO!" finished
+            const id = setTimeout(() => {
+                setReadyText(""); // Clear Overlay
+                
+                // EXTRA PAUSE: 1 Second before flashing starts
+                const pauseId = setTimeout(() => {
+                    startFlashing(targetIndex);
+                }, 1000);
+                timeoutsRef.current.push(pauseId);
+
+            }, duration);
+            timeoutsRef.current.push(id);
         }
-      }, t);
-      timeoutsRef.current.push(id);
-    });
+    };
+
+    runSeq();
   };
 
   const startFlashing = (forcedIndex) => {
@@ -250,7 +262,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
         const num = gameSetsRef.current[forcedIndex][next];
         
         playSound("tick");
-        speakNumber(num); // This will auto-cancel previous speech
+        speakNumber(num); 
 
         return next;
       });
@@ -258,10 +270,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   };
 
   const handleStart = () => {
-    // REMOVED: playSound("tick"); (As requested)
-
     // TTS UNLOCK: Silent utterance to wake up engine on iOS/Android
-    // This is strictly a silent unlock, no text is spoken.
     if (ttsEnabled) {
         window.speechSynthesis.cancel();
         const unlock = new SpeechSynthesisUtterance(" ");
@@ -327,7 +336,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
             speak("Correct");
         } else {
             setFeedbackStatus("wrong");
-            playSound("wrong"); // UPDATED: Plays wronganswer.wav
+            playSound("wrong"); 
             speak(`Wrong, answer is ${actualAnswer}`);
         }
         setPhase("feedback");
@@ -386,19 +395,21 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
 
     const val = currentSet[currentNumberIndex];
     
-    // SIZE FIX: 'min(70vh, 90vw)' is base. 
-    // We add 'scale-[2.0]' in the parent div for mobile to force 2x size.
-    const fontSizeStyle = { fontSize: 'min(35vh, 30vw)' };
-    const minusSizeStyle = { fontSize: 'min(15vh, 20vw)' };
+    // VISUAL FIX FOR MOBILE:
+    // 1. Removed 'scale' transform.
+    // 2. Using 'clamp' for font size (8rem min, 40vw preferred, 20rem max).
+    // 3. w-[90vw] ensures numbers use full width of phone screen.
+    const numberSize = { fontSize: 'clamp(20rem, 40vw, 20rem)' };
+    const minusSize = { fontSize: 'clamp(10rem, 15vw, 8rem)' };
 
     return (
       <div 
         key={`${currentSetIndex}-${currentNumberIndex}`} 
-        className="flex flex-col items-center justify-center relative w-full h-full transform scale-[2.0] sm:scale-100 origin-center transition-transform duration-0"
+        className="flex flex-col items-center justify-center relative w-full h-full"
       >
-        <div className="flex items-center justify-center w-full h-full text-center">
+        <div className="flex items-center justify-center w-[90vw] h-full text-center">
             {val < 0 && (
-              <span className="font-black text-red-500 mr-2 self-center leading-none" style={minusSizeStyle}>
+              <span className="font-black text-red-500 mr-2 self-center leading-none" style={minusSize}>
                  −
               </span>
             )}
@@ -409,7 +420,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
                 ${val < 0 ? 'text-red-500' : 'text-slate-800'}
                 drop-shadow-2xl filter
               `}
-              style={fontSizeStyle}
+              style={numberSize}
             >
               {Math.abs(val)}
             </span>
@@ -422,9 +433,9 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center relative select-none bg-slate-50 overflow-hidden">
       
-      {/* Title / Round Indicator */}
+      {/* Title / Round Indicator - MOVED TO BOTTOM */}
       {phase !== "settings" && phase !== "summary" && (
-        <div className="absolute top-24 sm:top-36 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/80 backdrop-blur-md rounded-full border border-slate-200 shadow-md z-30">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/80 backdrop-blur-md rounded-full border border-slate-200 shadow-md z-30">
           <h2 className="text-sm sm:text-lg font-black text-slate-700 tracking-widest uppercase flex items-center gap-2 whitespace-nowrap">
             {`${t(lang, "rounds")} ${currentSetIndex + 1} / ${totalRounds}`} 
           </h2>
@@ -487,7 +498,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
 
             <button
               onClick={handleStart}
-              className="mt-2 w-full py-4 rounded-2xl text-2xl font-black text-white uppercase tracking-widest bg-linear-to-r from-cyan-400 to-blue-500 shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+              className="mt-2 w-full py-4 rounded-2xl text-2xl font-black text-white uppercase tracking-widest bg-gradient-to-r from-cyan-400 to-blue-500 shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
             >
               {t(lang, "start")}
             </button>
@@ -507,7 +518,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
       {/* --- PHASE: SUMMARY --- */}
       {phase === "summary" && (
         <div className="flex-1 w-full h-full flex flex-col items-center justify-center animate-in fade-in duration-500 px-2 overflow-hidden">
-            <div className="w-full max-w-4xl bg-white/95 backdrop-blur-xl rounded-4xl shadow-2xl p-6 flex flex-col max-h-[90vh]">
+            <div className="w-full max-w-4xl bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl p-6 flex flex-col max-h-[90vh]">
                 <h3 className="text-center text-2xl font-black text-slate-800 mb-4 uppercase border-b pb-2 shrink-0">{t(lang, "summary")}</h3>
                 
                 <div className="flex-1 overflow-y-auto pr-2 space-y-3 no-scrollbar">
@@ -577,8 +588,8 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
                 {renderDisplayContent()}
              </div>
              
-             {/* Progress Dots */}
-             <div className="absolute bottom-8 sm:bottom-12 flex gap-3 z-30">
+             {/* Progress Dots - MOVED UP slightly to avoid bottom overlap */}
+             <div className="absolute bottom-20 sm:bottom-12 flex gap-3 z-30">
                {Array.from({length: Math.max(1, Math.min(numbersPerSet, 20))}).map((_, i) => (
                  <div 
                    key={i} 
@@ -592,7 +603,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
       {/* --- PHASE: INPUT (KEYPAD) --- */}
       {phase === "input" && (
          <div className="flex-1 w-full h-full flex flex-col items-center justify-center animate-in slide-in-from-bottom-10 fade-in duration-300">
-            {/* Display Input - This contains the Visual "?" */}
+            {/* Display Input */}
             <div className="mb-6 w-full max-w-xs sm:max-w-sm px-4">
                <div className="bg-white rounded-2xl border-4 border-cyan-100 h-20 sm:h-24 flex items-center justify-center shadow-inner">
                   <span className="text-5xl sm:text-6xl font-black text-slate-800">{userInput || <span className="text-slate-200">?</span>}</span>
@@ -637,7 +648,7 @@ const FlashcardGame = forwardRef(function FlashcardGame({ lang }, ref) {
          </div>
       )}
 
-      {/* CSS Utility for hidden scrollbar - REMOVED JSX attribute to fix warnings */}
+      {/* CSS Utility for hidden scrollbar */}
       <style>{`
         .no-scrollbar::-webkit-scrollbar {
           display: none;
