@@ -182,7 +182,7 @@ function App() {
         {renderContent()}
       </main>
 
-      <style jsx global>{`
+      <style>{`
         @keyframes mascotFloat {
           0%, 100% { transform: translateY(0) rotate(-2deg); }
           50% { transform: translateY(-15px) rotate(2deg); }
